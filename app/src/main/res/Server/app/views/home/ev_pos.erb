@@ -1,0 +1,23 @@
+{"channel":{"evItem":
+[
+<% @posts.each do |p| %>
+
+    <% if p == @posts.last %>
+    {
+    "location":"<%= p.location %>",
+    "speed":"<%= p.speed %>",
+    "address":"<%= p.address %>",
+    "latitude":"<%= p.latitude %>",
+    "longitude":"<%= p.longitude %>"
+    }
+    <% else %>
+    {
+    "location":"<%= p.location %>",
+    "speed":"<%= p.speed %>",
+    "address":"<%= p.address %>",
+    "latitude":"<%= p.latitude %>",
+    "longitude":"<%= p.longitude %>"
+    },
+    <% end %>
+<% end %>
+]}}

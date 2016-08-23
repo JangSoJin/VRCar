@@ -1,19 +1,12 @@
 package com.hyundai.hackathon.player;
 
 import android.content.DialogInterface;
-import android.content.res.Configuration;
-import android.content.res.Resources;
-import android.graphics.Bitmap;
 import android.graphics.Color;
-import android.graphics.drawable.Drawable;
-import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
-import android.support.annotation.BoolRes;
 import android.support.annotation.Nullable;
-import android.support.v4.content.res.ResourcesCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
@@ -28,16 +21,22 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ProgressBar;
-import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.asha.vrlib.MDVRLibrary;
 import com.hyundai.hackathon.R;
+import com.hyundai.hackathon.contents.Item;
+import com.hyundai.hackathon.util.NetworkModel;
 import com.hyundai.hackathon.util.Util;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 
 public class Player360Activity extends AppCompatActivity implements
@@ -48,9 +47,6 @@ public class Player360Activity extends AppCompatActivity implements
         SeekBar.OnSeekBarChangeListener,View.OnClickListener
 {
     public final String TAG = "Player";
-
-    //getFrame to Bitmap
-    MediaMetadataRetriever mediaMetadataRetriever;
 
     //설정 변수
     private int UPDATETIME=30;
@@ -80,7 +76,14 @@ public class Player360Activity extends AppCompatActivity implements
 
     //Contents Surface 변수
     private ContentsSurfaceView contentsSurfaceView;
-    private ImageButton locationButton;
+    private ImageButton locationButton, cvButton;
+
+    private int accumulateX = 0;
+    private String value = "";
+
+    private double latitude = 37.461084; // 위도
+    private double longitude = 126.723380; // 경도
+
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -99,7 +102,7 @@ public class Player360Activity extends AppCompatActivity implements
                         FrameLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        ImageButton locationButton = new ImageButton(this);
+        locationButton = new ImageButton(this);
         FrameLayout.LayoutParams locationButtonParams =
                 new FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -108,12 +111,26 @@ public class Player360Activity extends AppCompatActivity implements
 
         locationButton.setBackgroundResource(R.drawable.ic_add_location_black_48dp);
         locationButtonParams.gravity = Gravity.RIGHT;
-        locationButtonParams.setMargins( 0,50,30,0);
+        locationButtonParams.setMargins( 0,70,30,0);
+
+        cvButton = new ImageButton(this);
+        FrameLayout.LayoutParams cvButtonParams =
+                new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        FrameLayout.LayoutParams.WRAP_CONTENT
+                );
+
+        cvButton.setBackgroundResource(R.drawable.ic_ev_station_black_48dp);
+        cvButtonParams.gravity = Gravity.RIGHT;
+        cvButtonParams.setMargins( 0,70,240,0);
+
         contentsFrame.addView(locationButton, locationButtonParams);
+        contentsFrame.addView(cvButton, cvButtonParams);
         contentsFrame.addView(contentsSurfaceView,surfaceViewParams);
         addContentView(contentsFrame,surfaceViewParams);
 
         locationButton.setOnClickListener(this);
+        cvButton.setOnClickListener(this);
 
         UIinit();
         getMediaSource();
@@ -121,7 +138,7 @@ public class Player360Activity extends AppCompatActivity implements
         mediaPlayer = new MediaPlayer();
         mediaPlayer.setOnPreparedListener(this);
         mdvrLibrary=createVRLibrary();
-
+        mdvrLibrary.initY(10);
     }
 
 
@@ -195,43 +212,80 @@ public class Player360Activity extends AppCompatActivity implements
         btnRestart.setOnClickListener(this);
     }
 
+    //화면전환 이벤트
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        String s = contentsSurfaceView.clickReflex(event);
+        if(s==null)return mdvrLibrary.handleTouchEvent(event) || super.onTouchEvent(event);
+        else{
+            AlertDialog.Builder alert = new AlertDialog.Builder(this);
+            final String[] content = s.split("/");
+            alert.setTitle(content[0]);
+            alert.setMessage(content[1]);
+
+
+            alert.setPositiveButton("목적지", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog, int whichButton) {
+                    contentsSurfaceView.setDestFlag(true,null,accumulateX);
+                }
+            });
+            alert.setNeutralButton("목적지 취소",
+                    new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int whichButton) {
+                            if (!contentsSurfaceView.setDestFlag(false, content[0],accumulateX)) {
+                                Toast.makeText(Player360Activity.this, "현재 목적지가 아닙니다.", Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                    });
+
+            alert.setNegativeButton("닫기",
+                    new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int whichButton) {
+                        }
+                    });
+
+            alert.show();
+        }
+        return true;
+    }
+
     //Set UI Events
     @Override
     public void onClick(View v) {
-        if(v.getId()==R.id.btnRetry){
-        }else if(v.getId()==R.id.btnPlayPause){
-            if(isPlaying()) pause();
+        if (v.getId() == R.id.btnRetry) {
+        } else if (v.getId() == R.id.btnPlayPause) {
+            if (isPlaying()) pause();
             else {
                 hideControl();
                 start();
             }
-        }else if(v.getId()==R.id.btnSkipNext){
+        } else if (v.getId() == R.id.btnSkipNext) {
             //TODO : long touch 처리 + seek 처리
-        }else if(v.getId()==R.id.btnRestart){
-            if(mediaPlayer!=null){
+        } else if (v.getId() == R.id.btnRestart) {
+            if (mediaPlayer != null) {
                 mediaPlayer.seekTo(0);
-                if(!isPlaying())mediaPlayer.start();
+                if (!isPlaying()) mediaPlayer.start();
             }
-        }
-        else{ //view가 alert 이면 팝업실행 즉 버튼을 누르면 팝업창이 뜨는 조건
+        } else if (v == locationButton) { //view가 alert 이면 팝업실행 즉 버튼을 누르면 팝업창이 뜨는 조건
             AlertDialog.Builder alert = new AlertDialog.Builder(this);
-            alert.setTitle("Title");
-            alert.setMessage("Message");
+            alert.setTitle("위치검색");
+            alert.setMessage("키워드로 검색하세요.");
 
             // Set an EditText view to get user input
             final EditText input = new EditText(this);
+            input.setGravity(Gravity.CENTER);
             alert.setView(input);
 
-            alert.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+            alert.setPositiveButton("검색", new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface dialog, int whichButton) {
-                    String value = input.getText().toString();
-                    contentsSurfaceView.contentsDraw(value.toString(),getApplicationContext());
+                    value = input.getText().toString();
+                    contentsSurfaceView.contentsDraw(value.toString(), accumulateX, getApplicationContext());
                     // Do something with value!
                 }
             });
 
 
-            alert.setNegativeButton("Cancel",
+            alert.setNegativeButton("닫기",
                     new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface dialog, int whichButton) {
                             // Canceled.
@@ -240,8 +294,41 @@ public class Player360Activity extends AppCompatActivity implements
 
             alert.show();
         }
-    }
+        else if(v == cvButton) {
+            NetworkModel.getInstance().getTest("https://hackathon-jangsojin.c9users.io", 0, 0, new NetworkModel.OnResultListener<String>() {
+                @Override
+                public void onSuccess(String result) {
+                    List<Item> itemList = new ArrayList<Item>();
+                    try {
+                        Log.v("jsontest", result);
+                        JSONObject reader = new JSONObject(result);
+                        JSONObject channel = reader.getJSONObject("channel");
+                        JSONArray objects = channel.getJSONArray("evItem");
+                        for (int i = 0; i < objects.length(); i++) {
+                            JSONObject object = objects.getJSONObject(i);
+                            Item item = new Item();
+                            item.title = object.getString("location");
+                            item.category = object.getString("speed");
+                            item.address = object.getString("address");
+                            item.latitude = object.getDouble("longitude");
+                            item.longitude = object.getDouble("latitude");
+                            item.distance = (int)Util.calDistance(latitude,longitude,item.latitude,item.longitude);
+                            if(item.distance<2000) itemList.add(item);
+                            Log.v("jsontest", item.distance +" "+ item.latitude+ " " + item.longitude);
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    contentsSurfaceView.evDraw(itemList, accumulateX, getApplicationContext());
+                }
 
+                @Override
+                public void onError(int code) {
+
+                }
+            });
+        }
+    }
 
     //인텐트로 데이터 주소를 받아오는 함수
     private void getMediaSource(){
@@ -323,8 +410,6 @@ public class Player360Activity extends AppCompatActivity implements
                         mediaPlayer.setSurface(surface);
                         try {
                             mediaPlayer.setDataSource(getApplicationContext(),Uri.parse(mSource));
-                            mediaMetadataRetriever = new MediaMetadataRetriever();
-                            mediaMetadataRetriever.setDataSource(getApplicationContext(),Uri.parse(mSource));
                             prepare();
                         } catch (IOException e) {
                             e.printStackTrace();
@@ -430,21 +515,23 @@ public class Player360Activity extends AppCompatActivity implements
 
             playerEventHandler(pos,dur);
 
-            onBitmapCallback(mediaMetadataRetriever.getFrameAtTime(pos));
             if(mUpdateHandler!=null) mUpdateHandler.postDelayed(this,UPDATETIME);
         }
     };
 
-    protected void onBitmapCallback(Bitmap bitmap){};
 
     //콜백 핸들러 호출 시간 조정
     protected void setUpdatetime(int updatetime){
         this.UPDATETIME=updatetime;
     }
 
-    protected void playerEventHandler(int pos, int dur){};
-
-    protected MDVRLibrary getMdvrLibrary(){return mdvrLibrary;}
+    protected void playerEventHandler(int pos, int dur){
+        int prv = accumulateX;
+        accumulateX = (int)mdvrLibrary.getDeltaX()%360;
+        if(accumulateX<0) accumulateX += 360;
+        if(prv!=accumulateX) contentsSurfaceView.moveSurface(accumulateX);
+        Log.v("accumulate",""+accumulateX);
+    };
 
     @Override
     public void onCompletion(MediaPlayer mp) {
@@ -471,12 +558,6 @@ public class Player360Activity extends AppCompatActivity implements
         throw new RuntimeException(new Exception("Player Error"));
     }
 
-
-
-    private void setControlEnable(Boolean enable){
-
-    }
-
     private boolean isControlViewShown(){
         return !controlDisable && ControlView!=null && ControlView.getAlpha()>.5f;
     }
@@ -500,10 +581,6 @@ public class Player360Activity extends AppCompatActivity implements
         ControlView.animate().alpha(0f)
                 .setInterpolator(new DecelerateInterpolator())
                 .start();
-    }
-
-    protected String getmSource(){
-        return mSource;
     }
 
 }

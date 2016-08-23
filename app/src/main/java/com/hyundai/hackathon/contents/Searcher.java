@@ -3,6 +3,7 @@ package com.hyundai.hackathon.contents;
 
 import android.content.Context;
 import android.os.AsyncTask;
+import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;

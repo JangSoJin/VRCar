@@ -80,8 +80,6 @@ public class MDTouchHelper {
                 if (mCurrentMode == MODE_PINCH) return false;
 
                 if (mAdvanceGestureListener != null)
-                    Log.v("distanceX",distanceX+"");
-                    Log.v("distanceY",distanceY+"");
                     mAdvanceGestureListener.onDrag(distanceX / mGlobalScale, distanceY / mGlobalScale);
                 return true;
             }

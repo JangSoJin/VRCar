@@ -100,6 +100,28 @@ public class MDVRLibrary {
         });
     }
 
+    public void initY(int y){
+        List<MD360Director> directors = mProjectionModeManager.getDirectors();
+        for (MD360Director director : directors){
+            director.setDeltaY(y);
+        }
+    }
+
+    public float getDeltaX(){
+        List<MD360Director> directors = mProjectionModeManager.getDirectors();
+        for (MD360Director director : directors){
+            return director.getDeltaX();
+        }
+        return 0;
+    }
+
+    public void setDeltaX(int x){
+        List<MD360Director> directors = mProjectionModeManager.getDirectors();
+        for (MD360Director director : directors){
+            director.setDeltaX(x);
+        }
+    }
+
     private void initModeManager(Builder builder) {
 
         // init ProjectionModeManager
@@ -216,10 +238,6 @@ public class MDVRLibrary {
         mTextureSize.set(0,0,width,height);
     }
 
-    public void customDrag(float distanceX, float distanceY) {
-        Log.v("custom",distanceY+"");
-        mInteractiveModeManager.handleDrag((int) distanceX,(int) distanceY);
-    }
 
     public void onResume(Context context){
         mInteractiveModeManager.onResume(context);
@@ -433,6 +451,7 @@ public class MDVRLibrary {
             this.directorFactory = directorFactory;
             return this;
         }
+
 
         public Builder barrelDistortionConfig(BarrelDistortionConfig config){
             this.barrelDistortionConfig = config;
